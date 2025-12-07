@@ -2,15 +2,14 @@ const Complaint = require('../models/Complaint');
 const { successResponse, errorResponse } = require('../utils/response');
 
 class ComplaintController {
-  // ✅ CREATE COMPLAINT
   static async create(req, res) {
     try {
-      const userId = req.user.id; // Dari middleware auth
+      const userId = req.user.id;
       const { title, category, description } = req.body;
 
       if (!title || !category) {
         return res.status(400).json(
-          errorResponse('Judul dan kategori wajib diisi')
+          errorResponse('Judul dan kategori wajib diisi', 400)
         );
       }
 
@@ -32,12 +31,11 @@ class ComplaintController {
     } catch (error) {
       console.error('Create complaint error:', error);
       res.status(500).json(
-        errorResponse('Gagal membuat komplain')
+        errorResponse('Gagal membuat komplain', 500)
       );
     }
   }
 
-  // ✅ GET COMPLAINT HISTORY
   static async getHistory(req, res) {
     try {
       const userId = req.user.id;
@@ -65,12 +63,11 @@ class ComplaintController {
     } catch (error) {
       console.error('Get history error:', error);
       res.status(500).json(
-        errorResponse('Gagal mengambil history komplain')
+        errorResponse('Gagal mengambil history komplain', 500)
       );
     }
   }
 
-  // ✅ GET COMPLAINT DETAIL
   static async getDetail(req, res) {
     try {
       const { id } = req.params;
@@ -80,14 +77,13 @@ class ComplaintController {
       
       if (!complaint) {
         return res.status(404).json(
-          errorResponse('Komplain tidak ditemukan')
+          errorResponse('Komplain tidak ditemukan', 404)
         );
       }
 
-      // Cek authorization (hanya pemilik atau admin/teknisi)
       if (complaint.user_id !== userId && !['admin', 'teknisi'].includes(req.user.role)) {
         return res.status(403).json(
-          errorResponse('Anda tidak memiliki akses ke komplain ini')
+          errorResponse('Anda tidak memiliki akses ke komplain ini', 403)
         );
       }
 
@@ -98,7 +94,65 @@ class ComplaintController {
     } catch (error) {
       console.error('Get detail error:', error);
       res.status(500).json(
-        errorResponse('Gagal mengambil detail komplain')
+        errorResponse('Gagal mengambil detail komplain', 500)
+      );
+    }
+  }
+
+  // ✅ TAMBAH METHOD INI
+  static async updateStatus(req, res) {
+    try {
+      const { id } = req.params;
+      const { status, resolution_notes } = req.body;
+      const userRole = req.user.role;
+
+      // Validasi: hanya teknisi/admin yang bisa update status
+      if (!['teknisi', 'admin'].includes(userRole)) {
+        return res.status(403).json(
+          errorResponse('Hanya teknisi atau admin yang dapat mengupdate status', 403)
+        );
+      }
+
+      // Validasi status
+      const validStatuses = ['pending', 'diproses', 'selesai', 'ditolak'];
+      if (!status || !validStatuses.includes(status)) {
+        return res.status(400).json(
+          errorResponse(`Status tidak valid. Pilihan: ${validStatuses.join(', ')}`, 400)
+        );
+      }
+
+      const updateData = {
+        status,
+        updated_at: new Date().toISOString()
+      };
+
+      // Jika teknisi yang update, simpan teknisi_id
+      if (userRole === 'teknisi') {
+        updateData.teknisi_id = req.user.id;
+      }
+
+      // Jika ada resolution notes
+      if (resolution_notes) {
+        updateData.resolution_notes = resolution_notes;
+      }
+
+      // Update complaint
+      const complaint = await Complaint.update(id, updateData);
+
+      if (!complaint) {
+        return res.status(404).json(
+          errorResponse('Komplain tidak ditemukan', 404)
+        );
+      }
+
+      res.json(
+        successResponse(complaint, 'Status komplain berhasil diupdate')
+      );
+
+    } catch (error) {
+      console.error('Update status error:', error);
+      res.status(500).json(
+        errorResponse('Gagal mengupdate status komplain', 500)
       );
     }
   }

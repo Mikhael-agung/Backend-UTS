@@ -1,37 +1,38 @@
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const tokenStore = require('../utils/tokenStore');
+const { successResponse, errorResponse } = require('../utils/response'); // ← TAMBAH INI
 
 class AuthController {
   static async login(req, res) {
     try {
       const { username, password } = req.body;
 
-      // Cari user
+      // ✅ VALIDASI PAKAI errorResponse
+      if (!username || !password) {
+        return res.status(400).json(
+          errorResponse('Username dan password harus diisi', 400)
+        );
+      }
+
       const user = await User.findByUsernameOrEmail(username);
       
       if (!user) {
-        return res.status(401).json({
-          success: false,
-          message: 'Username atau password salah'
-        });
+        return res.status(401).json(
+          errorResponse('Username atau password salah', 401) // ← UPDATE
+        );
       }
 
-      // Check password
       const validPassword = await bcrypt.compare(password, user.password_hash);
       if (!validPassword) {
-        return res.status(401).json({
-          success: false,
-          message: 'Username atau password salah'
-        });
+        return res.status(401).json(
+          errorResponse('Username atau password salah', 401) // ← UPDATE
+        );
       }
 
-      // Generate SIMPLE TOKEN: user_id + random string
       const randomStr = Math.random().toString(36).substring(2, 10);
       const token = `${user.id}_${randomStr}`;
       
-      // Simpan token ke store
       tokenStore.set(token, {
         userId: user.id,
         username: user.username,
@@ -39,24 +40,24 @@ class AuthController {
         email: user.email
       });
 
-      // Response
       const { password_hash, ...userData } = user;
       
-      res.json({
-        success: true,
-        message: 'Login berhasil',
-        data: {
-          token, 
-          user: userData
-        }
-      });
+      // ✅ RESPONSE PAKAI successResponse
+      res.json(
+        successResponse(
+          {
+            token, 
+            user: userData
+          },
+          'Login berhasil' // ← message parameter
+        )
+      );
 
     } catch (error) {
       console.error('Login error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Terjadi kesalahan server'
-      });
+      res.status(500).json(
+        errorResponse('Terjadi kesalahan server', 500) // ← UPDATE
+      );
     }
   }
 
@@ -68,41 +69,42 @@ class AuthController {
         tokenStore.delete(token);
       }
       
-      res.json({
-        success: true,
-        message: 'Logout berhasil'
-      });
+      // ✅ PAKAI successResponse
+      res.json(
+        successResponse(null, 'Logout berhasil')
+      );
       
     } catch (error) {
       console.error('Logout error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Terjadi kesalahan server'
-      });
+      res.status(500).json(
+        errorResponse('Terjadi kesalahan server', 500)
+      );
     }
   }
 
-  // ✅ REGISTER
   static async register(req, res) {
     try {
       const { username, email, password, full_name, phone } = req.body;
 
-      // 1. Cek apakah user sudah ada
+      // ✅ VALIDASI
+      if (!username || !email || !password || !full_name) {
+        return res.status(400).json(
+          errorResponse('Semua field wajib diisi', 400)
+        );
+      }
+
       const existingUser = await User.findByUsernameOrEmail(username) || 
                           await User.findByUsernameOrEmail(email);
       
       if (existingUser) {
-        return res.status(400).json({
-          success: false,
-          message: 'Username atau email sudah terdaftar'
-        });
+        return res.status(400).json(
+          errorResponse('Username atau email sudah terdaftar', 400)
+        );
       }
 
-      // 2. Hash password
       const salt = await bcrypt.genSalt(10);
       const passwordHash = await bcrypt.hash(password, salt);
 
-      // 3. Buat user baru pakai MODEL
       const newUser = await User.create({
         id: `user_${Date.now()}`,
         username,
@@ -113,27 +115,34 @@ class AuthController {
         role: 'customer'
       });
 
-      // 4. Generate token
       const token = `${newUser.id}_${Date.now()}`;
+      
+      // ✅ SIMPAN TOKEN
+      tokenStore.set(token, {
+        userId: newUser.id,
+        username: newUser.username,
+        role: newUser.role,
+        email: newUser.email
+      });
 
-      // 5. Hapus password dari response
       const { password_hash, ...userData } = newUser;
 
-      res.status(201).json({
-        success: true,
-        message: 'Registrasi berhasil',
-        data: {
-          token,
-          user: userData
-        }
-      });
+      // ✅ RESPONSE
+      res.status(201).json(
+        successResponse(
+          {
+            token,
+            user: userData
+          },
+          'Registrasi berhasil'
+        )
+      );
 
     } catch (error) {
       console.error('Register error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Terjadi kesalahan server'
-      });
+      res.status(500).json(
+        errorResponse('Terjadi kesalahan server', 500)
+      );
     }
   }
 }

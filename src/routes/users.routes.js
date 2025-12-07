@@ -1,12 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const UserController = require('../controllers/UserController');
-const auth = require('../middleware/auth');
-const validation = require('../middleware/validation');
+const { authMiddleware } = require('../middleware/auth');
 
-router.use(auth);
+router.use(authMiddleware);
 
 router.get('/me', UserController.getProfile);
-router.put('/me', validation(), UserController.updateProfile);
+router.put('/me', UserController.updateProfile);
 
 module.exports = router;

@@ -1,4 +1,3 @@
-// Simple in-memory Complaint model
 const supabase = require('../config/supabase');
 
 const User = {
@@ -9,43 +8,44 @@ const User = {
       .eq('id', id)
       .single();
     
-      return error ? null : data;
+    return error ? null : data;
   },
 
-  // Search User by username/email
+  // ✅ FIX: ganti 'identifier' jadi 'query'
   async findByUsernameOrEmail(query) {
     const { data, error } = await supabase
       .from('users')
       .select('*')
-      .or(`username.eq.${identifier},email.eq.${identifier}`)
+      .or(`username.eq.${query},email.eq.${query}`)
       .single();
 
     return error ? null : data;
   },
 
-  // Create new User
+  // ✅ FIX: tambah .select() untuk return data
   async create(userData) {
     const { data, error } = await supabase
       .from('users')
       .insert([userData])
+      .select()  // ← TAMBAH INI
       .single();
 
     if (error) throw error;
     return data;      
   },
 
-
-  // Update User
+  // ✅ FIX: tambah .select()
   async update(id, updates) {
     const { data, error } = await supabase
       .from('users')
       .update(updates)
       .eq('id', id)
+      .select()  // ← TAMBAH INI
       .single();
 
     if (error) throw error;
     return data;
-  },
+  }
 };
 
 module.exports = User;
