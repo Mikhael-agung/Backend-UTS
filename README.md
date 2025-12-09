@@ -228,13 +228,9 @@ cat .env
 4. Push to branch (`git push origin feature/amazing`)
 5. Open Pull Request
 
-## 📄 License
-
-MIT License - lihat [LICENSE](LICENSE) file untuk detail
-
 ## 👥 Authors
 
-- **Your Name** - Initial work
+- **Mikhael Agung - Dicky Yusuf** - Initial work
 
 ## 🙏 Acknowledgments
 
