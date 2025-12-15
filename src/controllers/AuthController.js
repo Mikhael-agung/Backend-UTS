@@ -1,6 +1,6 @@
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
-const { generateToken } = require('../utils/jwt'); // ✅ Ganti tokenStore
+const { generateToken } = require('../utils/jwt');
 const { successResponse, errorResponse } = require('../utils/response');
 
 class AuthController {
@@ -30,7 +30,6 @@ class AuthController {
         );
       }
 
-      // ✅ GENERATE JWT TOKEN
       const token = generateToken(user);
 
       // Hapus password dari response
@@ -56,8 +55,6 @@ class AuthController {
 
   static async logout(req, res) {
     try {
-      // ✅ Dengan JWT, logout cukup di client side
-      // (hapus token dari localStorage di frontend)
       res.json(
         successResponse(null, 'Logout berhasil')
       );
@@ -113,7 +110,6 @@ class AuthController {
         role
       });
 
-      // ✅ GENERATE JWT TOKEN
       const token = generateToken(newUser);
 
       // Hapus password dari response
