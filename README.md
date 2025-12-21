@@ -17,7 +17,7 @@ REST API backend untuk aplikasi Service Complaint (Project UTS) dengan Express.j
 - **Backend:** Node.js + Express.js
 - **Database:** Supabase (PostgreSQL)
 - **Authentication:** Custom Token System
-- **Password Hashing:** SHA256 (Fast & Secure enough for UTS)
+- **Password Hashing:** SHA256 
 - **Environment:** dotenv untuk configuration
 
 ## 📁 Project Structure
