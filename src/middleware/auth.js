@@ -3,7 +3,7 @@ const { verifyToken } = require('../utils/jwt');
 const { errorResponse } = require('../utils/response'); 
 const authMiddleware = (req, res, next) => {
   try {
-    console.log('🔐 [AUTH] Checking authorization header...');
+    // console.log('🔐 [AUTH] Checking authorization header...');
     const authHeader = req.headers.authorization;
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -20,8 +20,8 @@ const authMiddleware = (req, res, next) => {
         errorResponse('Token tidak ditemukan', 401)
       );
     }
-     console.log('🔐 [AUTH] Token received, length:', token.length);
-    console.log('🔐 [AUTH] Token sample:', token.substring(0, 30) + '...');
+    //  console.log('🔐 [AUTH] Token received, length:', token.length);
+    // console.log('🔐 [AUTH] Token sample:', token.substring(0, 30) + '...');
 
     const decoded = verifyToken(token);
     
@@ -32,8 +32,8 @@ const authMiddleware = (req, res, next) => {
       );
     }
 
-     console.log('✅ [AUTH] Token verified for user:', decoded.username);
-    console.log('✅ [AUTH] User role:', decoded.role);
+    //  console.log('✅ [AUTH] Token verified for user:', decoded.username);
+    // console.log('✅ [AUTH] User role:', decoded.role);
 
     // Attach user info to request
     req.user = decoded;
