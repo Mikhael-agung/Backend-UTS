@@ -201,12 +201,15 @@ class TeknisiController {
         }
     }
 
-    // PATCH /api/teknisi/complaints/:id/status
     static async updateStatus(req, res) {
         try {
             const { id } = req.params;
-            const { status, alasan } = req.body;
+            const { status, alasan, resolution_notes } = req.body;
             const userId = req.user.id;
+
+            console.log(`🔄 Update status: ${id} → ${status}`);
+            console.log(`📝 Alasan: ${alasan}`);
+            console.log(`📋 Resolution notes: ${resolution_notes || 'none'}`);
 
             // Validasi status
             const validStatuses = ['on_progress', 'pending', 'completed'];
@@ -216,50 +219,111 @@ class TeknisiController {
                 );
             }
 
-            // 1. Cek apakah komplain diambil oleh teknisi ini
-            const complaint = await Complaint.findById(id);
-            if (!complaint) {
+            // ====================== ✅ DUPLICATE PROTECTION START ======================
+            
+            // 1. GET CURRENT COMPLAINT
+            const currentComplaint = await Complaint.findById(id);
+            if (!currentComplaint) {
                 return res.status(404).json(
                     errorResponse('Komplain tidak ditemukan', 404)
                 );
             }
 
-            if (complaint.teknisi_id !== userId) {
+            // 2. CEK APAKAH STATUS SUDAH SAMA DAN SUDAH ADA RESOLUTION NOTES
+            if (status === 'completed' && 
+                currentComplaint.status === 'completed' && 
+                currentComplaint.resolution_notes) {
+                
+                console.log('⚠️ Complaint already completed with resolution notes');
+                return res.status(400).json(
+                    errorResponse('Komplain sudah selesai dengan catatan penyelesaian. Tidak dapat diupdate lagi.', 400)
+                );
+            }
+
+            // 3. CEK DOUBLE SUBMIT DALAM 2 MENIT TERAKHIR
+            const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+            
+            const { data: recentEntries } = await supabase
+                .from('complaint_statuses')
+                .select('id, alasan, created_at')
+                .eq('complaint_id', id)
+                .eq('status', status)
+                .eq('teknisi_id', userId)
+                .gte('created_at', twoMinutesAgo)
+                .order('created_at', { ascending: false })
+                .limit(1);
+
+            if (recentEntries && recentEntries.length > 0) {
+                const lastEntry = recentEntries[0];
+                
+                // CEK JIKA ALASAN SAMA ATAU MIRIP
+                const isSameReason = lastEntry.alasan === alasan;
+                const isSimilarResolution = resolution_notes && 
+                    lastEntry.alasan.includes(resolution_notes.substring(0, 30));
+                
+                if (isSameReason || isSimilarResolution) {
+                    console.log('❌ Double submit detected');
+                    return res.status(400).json(
+                        errorResponse('Status sudah diupdate baru-baru ini. Silakan tunggu beberapa menit.', 400)
+                    );
+                }
+            }
+
+            // 4. VALIDATE TEKNISI PERMISSION
+            if (currentComplaint.teknisi_id !== userId) {
                 return res.status(403).json(
                     errorResponse('Anda bukan teknisi yang menangani komplain ini', 403)
                 );
             }
 
-            // 2. Update status di complaint_statuses (audit trail)
+            // ====================== ✅ DUPLICATE PROTECTION END ======================
+
+            // Prepare update data
+            const updateData = {
+                status,
+                updated_at: new Date().toISOString()
+            };
+
+            // Simpan resolution_notes hanya untuk completed
+            if (status === 'completed' && resolution_notes) {
+                updateData.resolution_notes = resolution_notes;
+                console.log(`💾 Saving resolution notes: ${resolution_notes.substring(0, 50)}...`);
+            }
+
+            const updatedComplaint = await Complaint.update(id, updateData);
+
+            // Insert status history
+            const alasanForHistory = alasan || `Status diubah menjadi ${status}`;
+            
             await supabase
                 .from('complaint_statuses')
                 .insert([{
                     complaint_id: id,
                     status: status,
                     teknisi_id: userId,
-                    alasan: alasan || `Status diubah menjadi ${status}`
+                    alasan: alasanForHistory
                 }]);
 
-            // 3. Update complaint status
-            const updateData = {
-                status,
-                updated_at: new Date().toISOString()
-            };
+            console.log(`✅ Status history added: ${status} - ${alasanForHistory}`);
 
-            const updatedComplaint = await Complaint.update(id, updateData);
-
-            // 4. Get full status history untuk response
+            // Get full status history untuk response
             const statusHistory = await Complaint.getStatusHistory(id);
 
             res.json(
                 successResponse({
                     complaint: updatedComplaint,
-                    status_history: statusHistory
+                    status_history: statusHistory,
+                    resolution_saved: !!(status === 'completed' && resolution_notes),
+                    duplicate_protection: {
+                        enabled: true,
+                        time_window_minutes: 2,
+                        message: "Double submit protection aktif"
+                    }
                 }, `Status berhasil diubah menjadi ${status}`)
             );
 
         } catch (error) {
-            console.error('Update status error (teknisi):', error);
+            console.error('❌ Update status error (teknisi):', error);
             res.status(500).json(
                 errorResponse('Gagal mengupdate status komplain', 500)
             );
