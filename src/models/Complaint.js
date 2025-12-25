@@ -125,17 +125,16 @@ const Complaint = {
   },
 
   // Get complaint by ID with user and teknisi info
+  // models/Complaint.js - FIXED VERSION:
+
   async findById(id) {
     try {
-      // console.log(`🔍 [MODEL] Find complaint by ID: ${id}`);
+      console.log(`🔍 [MODEL] Find complaint by ID: ${id}`);
 
-      const { data, error } = await supabase
+      // QUERY WITHOUT EMBED - select minimal fields
+      const { data: complaint, error } = await supabase
         .from('complaints')
-        .select(`
-          *,
-          user:users(id, username, full_name),
-          teknisi:teknisi_id(id, username, full_name)
-        `)
+        .select('*')
         .eq('id', id)
         .single();
 
@@ -144,8 +143,41 @@ const Complaint = {
         return null;
       }
 
-      // console.log(`✅ Found complaint: ${data?.judul || 'N/A'}`);
-      return data;
+      if (!complaint) {
+        return null;
+      }
+
+      // GET USER DATA SEPARATELY
+      let customer = null;
+      let teknisi = null;
+
+      // Get customer (user_id)
+      if (complaint.user_id) {
+        const { data: customerData } = await supabase
+          .from('users')
+          .select('id, username, full_name, phone')
+          .eq('id', complaint.user_id)
+          .single();
+        customer = customerData;
+      }
+
+      // Get teknisi (teknisi_id)  
+      if (complaint.teknisi_id) {
+        const { data: teknisiData } = await supabase
+          .from('users')
+          .select('id, username, full_name')
+          .eq('id', complaint.teknisi_id)
+          .single();
+        teknisi = teknisiData;
+      }
+
+      // Return combined data
+      return {
+        ...complaint,
+        customer,  // data customer
+        teknisi    // data teknisi
+      };
+
     } catch (error) {
       console.error('❌ FindById exception:', error);
       return null;
@@ -190,26 +222,45 @@ const Complaint = {
   // Get status history for a complaint
   async getStatusHistory(complaintId) {
     try {
-      // console.log(`📜 [MODEL] Get status history for complaint: ${complaintId}`);
+      console.log(`📜 Get status history for: ${complaintId}`);
 
-      const { data, error } = await supabase
+      // Query tanpa embed
+      const { data: histories, error } = await supabase
         .from('complaint_statuses')
-        .select(`
-          *,
-          teknisi:teknisi_id(id, username, full_name)
-        `)
+        .select('*')
         .eq('complaint_id', complaintId)
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('❌ GetStatusHistory error:', error);
+        console.error('GetStatusHistory error:', error);
         return [];
       }
 
-      // console.log(`✅ Found ${data?.length || 0} status history records`);
-      return data || [];
+      // Get teknisi info separately
+      const historiesWithTeknisi = await Promise.all(
+        (histories || []).map(async (history) => {
+          let teknisi = null;
+
+          if (history.teknisi_id) {
+            const { data: teknisiData } = await supabase
+              .from('users')
+              .select('id, username, full_name')
+              .eq('id', history.teknisi_id)
+              .single();
+            teknisi = teknisiData;
+          }
+
+          return {
+            ...history,
+            teknisi
+          };
+        })
+      );
+
+      return historiesWithTeknisi;
+
     } catch (error) {
-      console.error('❌ GetStatusHistory exception:', error);
+      console.error('GetStatusHistory exception:', error);
       return [];
     }
   },
